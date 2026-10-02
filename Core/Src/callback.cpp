@@ -1,22 +1,21 @@
 #include "main.h"
 #include "usart.h"
 
-extern uint8_t rx_msg[1];
+extern uint8_t rx_msg[32];
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if (huart == &huart1)
     {
-        if (rx_msg[0] == 'R')
+        // 判断事件类型，只处理 IDLE 或 TC，过滤掉 Half-Complete
+        if (HAL_UARTEx_GetRxEventType(huart) == HAL_UART_RXEVENT_IDLE ||
+            HAL_UARTEx_GetRxEventType(huart) == HAL_UART_RXEVENT_TC)
         {
-            HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, GPIO_PIN_RESET); // 灭
-        }
-        else if (rx_msg[0] == 'M')
-        {
-            HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, GPIO_PIN_SET); // 亮
-        }
+            // 把收到的 Size 个字节发回去
+            HAL_UART_Transmit_IT(&huart1, rx_msg, Size);
 
-        // 重新开启接收，否则只能收一次
-        HAL_UART_Receive_IT(&huart1, rx_msg, 1);
+            // 重新开启接收
+            HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_msg, 32);
+        }
     }
 }
