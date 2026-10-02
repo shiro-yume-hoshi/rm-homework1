@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "dma.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -46,6 +47,9 @@
 
 /* USER CODE BEGIN PV */
 uint8_t rx_msg[32];
+extern void remote_init(void);
+extern int  remote_get_ch0(void);
+extern int  remote_is_connected(void);
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -90,8 +94,12 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART1_UART_Init();
+  MX_USART3_UART_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_msg, 32);
+  remote_init();
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -101,6 +109,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+    uint32_t ccr = 0;
+    if (remote_is_connected()) {
+      int ch0 = remote_get_ch0();
+      if (ch0 < 364)  ch0 = 364;
+      if (ch0 > 1684) ch0 = 1684;
+      ccr = (uint32_t)(ch0 - 364) * 999U / (1684U - 364U);
+    }
+    __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, ccr);
+
+    HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }
