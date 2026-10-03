@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-
+enable_language(C CXX ASM)
 #
 # This file is generated only once,
 # and is not re-generated if converter is called multiple times.
@@ -36,7 +36,12 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/main.c
         Core/Src/main.c
         Core/Src/main.c
-        Core/Src/main.c)
+        Core/Src/main.c
+        UserCode/callback.cpp
+        UserCode/Motor.cpp
+        UserCode/can_user.c
+        UserCode/Motor.hpp
+        UserCode/can_user.h)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -48,12 +53,16 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+        Core/Src/main.c
+        ...
+        UserCode/can_user.c
+        UserCode/Motor.cpp
+        UserCode/callback.cpp
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
+        UserCode
 )
 
 # Add project symbols (macros)
