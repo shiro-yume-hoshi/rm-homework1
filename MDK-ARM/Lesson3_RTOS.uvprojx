@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;..\UserCode</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../UserCode</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -390,6 +390,21 @@
         <Group>
           <GroupName>Application/User/Core</GroupName>
           <Files>
+            <File>
+              <FileName>callback.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\UserCode\callback.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>can_user.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\UserCode\can_user.c</FilePath>
+            </File>
+            <File>
+              <FileName>Motor.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\UserCode\Motor.cpp</FilePath>
+            </File>
             <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
@@ -519,21 +534,6 @@
               <FileName>stm32f4xx_hal_msp.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32f4xx_hal_msp.c</FilePath>
-            </File>
-            <File>
-              <FileName>callback.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\UserCode\callback.cpp</FilePath>
-            </File>
-            <File>
-              <FileName>can_user.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\UserCode\can_user.c</FilePath>
-            </File>
-            <File>
-              <FileName>Motor.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\UserCode\Motor.cpp</FilePath>
             </File>
           </Files>
         </Group>

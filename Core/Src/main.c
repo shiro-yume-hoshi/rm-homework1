@@ -21,9 +21,10 @@
 #include "can.h"
 #include "tim.h"
 #include "gpio.h"
-#include "can_user.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "can_user.h"
 
 /* USER CODE END Includes */
 
@@ -49,6 +50,11 @@ extern void motor_set_current(float amps, uint8_t id);
 extern int motor_has_feedback(void);
 extern float motor_get_angle(void);
 extern float motor_get_temperature(void);
+extern uint8_t motor_get_mode(void);
+extern void motor_set_mode(uint8_t mode);
+extern volatile uint8_t  g_key_level;
+extern volatile uint8_t  g_key_pressed;
+extern volatile uint32_t g_key_cnt;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -95,21 +101,38 @@ int main(void)
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
     if (HAL_CAN_ConfigFilter(&hcan1, &can_filter_config) != HAL_OK ||
-        HAL_CAN_Start(&hcan1) != HAL_OK ||
-        HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK ||
-        HAL_TIM_Base_Start_IT(&htim6) != HAL_OK) {
+    HAL_CAN_Start(&hcan1) != HAL_OK ||
+    HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK ||
+    HAL_TIM_Base_Start_IT(&htim6) != HAL_OK) {
         Error_Handler();
-        }
+    }
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint8_t last_key = 0;
+  uint8_t mode = 0;
   while (1)
   {
-      motor_set_current(1.0f, 1);
-      HAL_Delay(1000);
-      motor_set_current(0.0f, 1);
-      HAL_Delay(1000);
+      uint8_t key = HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin);
+
+
+      g_key_level   = key;
+      g_key_pressed = (key == GPIO_PIN_RESET) ? 1 : 0;
+
+
+      if (key == GPIO_PIN_RESET && last_key == GPIO_PIN_SET) {
+
+          HAL_Delay(20);
+          if (HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin) == GPIO_PIN_RESET) {
+              mode = (mode + 1) % 7;
+              g_key_cnt++;
+              motor_set_mode(mode);
+          }
+      }
+      last_key = key;
+
+      HAL_Delay(5);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
