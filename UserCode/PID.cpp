@@ -10,6 +10,18 @@ PID::PID(float kp, float ki, float kd,
       err_(0), last_err_(0), err_sum_(0), d_out_(0), output_(0) {
 }
 
+void PID::setGains(float kp, float ki, float kd) {
+    kp_ = kp;
+    ki_ = ki;
+    kd_ = kd;
+}
+
+void PID::setLimits(float i_max, float out_max, float d_filter_k) {
+    i_max_ = i_max;
+    out_max_ = out_max;
+    d_filter_k_ = d_filter_k;
+}
+
 void PID::reset() {
     err_ = last_err_ = err_sum_ = d_out_ = output_ = 0;
 }

@@ -12,6 +12,8 @@ public:
         float i_max, float out_max, float d_filter_k);
 
     void reset();
+    void setGains(float kp, float ki, float kd);   // 运行中在线改增益
+    void setLimits(float i_max, float out_max, float d_filter_k);   // 在线改限幅/滤波
     float calc(float ref, float fdb);
 
 private:
