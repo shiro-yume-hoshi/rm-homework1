@@ -30,6 +30,10 @@ volatile float   g_q_x     = 0;
 volatile float   g_q_y     = 0;
 volatile float   g_q_z     = 0;
 
+// ====== 融合方式 / 互补滤波参数 ======
+volatile uint8_t g_fusion_mode = 0;      // 0=互补滤波 1=Mahony
+volatile float   g_comp_k      = 0.98f;  // 互补滤波：陀螺权重
+
 // 调试用全局变量
 volatile uint8_t stop_flag = 0;   /* 1 = 电机输出立刻变 0 */
 volatile float   g_tx_current = 0;
@@ -166,6 +170,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 #endif // MOTOR_ENABLE
 
     // ====== IMU 1kHz 更新（读数据 -> 解算 -> 刷新调试量）======
+    imu.setFusion(g_fusion_mode ? IMU::MAHONY : IMU::COMPLEMENTARY);
+    imu.setComplementaryK(g_comp_k);
     imu.update(0.001f);
     const float* ai = imu.accel();
     const float* gi = imu.gyro();
