@@ -19,8 +19,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "can.h"
+#include "spi.h"
 #include "tim.h"
 #include "gpio.h"
+#include "bmi088.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -50,6 +52,7 @@ extern void motor_set_position(float angle, float ff);   /* 目标角度(度), �
 extern void motor_stop(void);
 extern int  motor_has_feedback(void);
 extern volatile uint8_t stop_flag;                        /* 1 = 电机输出立刻变 0 */
+extern unsigned char imu_init(void);                      /* BMI088 初始化+零偏校准，返回 1 成功 */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,16 +97,25 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN1_Init();
   MX_TIM6_Init();
+  MX_SPI1_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
     if (HAL_CAN_ConfigFilter(&hcan1, &can_filter_config) != HAL_OK ||
         HAL_CAN_Start(&hcan1) != HAL_OK ||
-        HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK ||
-        HAL_TIM_Base_Start_IT(&htim6) != HAL_OK) {
+        HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK) {
         Error_Handler();
     }
 
+    /* BMI088 初始化 + 静止零偏校准（约 1s，期间别动板子） */
+    imu_init();
+
     /* 上电即保持目标角度（位置双环 + 重力前馈在 Motor::handle() 里做） */
     motor_set_position(TARGET_ANGLE, 0.0f);
+
+    /* 最后再启动 1kHz 控制/解算定时器 */
+    if (HAL_TIM_Base_Start_IT(&htim6) != HAL_OK) {
+        Error_Handler();
+    }
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -1,0 +1,114 @@
+# stm32-gdb-mcp 调试配置 —— Lesson4-PID
+#
+# 载入方式（agent 侧）：
+#   set_debug_profile / debug_profile(action="set", config_path="D:/STM32project/Lesson4-PID/openocd-mcp.yaml")
+# 或直接把下面这些字段喂给 debug_profile(action="set")。
+#
+# 路径相对于本文件所在目录解析。
+
+mcu: STM32F407IGx
+board: STM32F407IGx DevKit
+probe: stlink
+server_type: openocd
+
+# OpenOCD 服务端参数。xPack 布局下 scripts 目录会被
+# find_openocd_scripts() 从 openocd.exe 路径反推：
+#   D:\DevTools\openocd\bin\openocd.exe -> D:\DevTools\openocd\openocd\scripts
+server_args:
+  - "-f"
+  - "interface/stlink.cfg"
+  - "-f"
+  - "target/stm32f4x.cfg"
+  - "-c"
+  - "adapter speed 4000"
+
+# armclang 产物，带 DWARF。绝对不要换成 CMake 那条线（没有 elf 产出）。
+elf_path: MDK-ARM/Lesson4_PID/Lesson4_PID.axf
+
+# 外设寄存器按名解码用
+svd_path: D:/DevTools/mcp/svd/STM32F407.svd
+
+project_root: .
+
+reset:
+  strategy: default
+  halt: false
+
+hil:
+  expected_core: cortex-m4
+  expected_device: STM32F407
+  flash: false
+  halt: false
+
+notes: |
+  ===== PID 在线调参：必须遵守 =====
+
+  1) 只能改 g_* 全局变量，绝不能改 PID 对象内部成员。
+     motor.ppid_.kp_ / motor.spid_.ki_ 之类虽然在 RAM 里，
+     但 callback.cpp:103 每个 TIM6 中断周期(1ms)都会用 g_* 覆盖它们。
+     直接写 PID 内部会在 1ms 内被冲掉，表象是"写入成功但参数没变"，
+     极易误判成工具坏了。
+
+  2) 写入必须走 write_memory + IEEE754 位模式，不能用 GDB 表达式赋值。
+     gdb_client.py 会把 may-write-memory 关掉，表达式赋值会被 GDB 直接拒绝。
+     float32 和 uint32 位布局相同，所以把 float 编码成 32 位十六进制即可。
+     转换脚本：D:/DevTools/mcp/stm32-gdb-mcp/scripts/pidmem.py
+       python pidmem.py enc g_kp_pp 420.0
+       python pidmem.py batch "g_kp_pp=420 g_ki_pp=0.5"
+       python pidmem.py verify <elf>
+     读取端 read_variable("g_kp_pp") 是类型感知的，直接返回浮点数。
+
+     注意工具名：这个 server 把同类工具合并成了 action 分发族，
+     文档里的 capture_expressions / set_write_policy 等旧名已经不存在。
+       expressions(action="capture"|"compare"|"assert", ...)
+       typed_memory(action="read"|"write", ...)
+       write_guard(action="policy"|"audit", ...)
+       logging(action="start_rtt_log"|...)
+     先用 tool_help 或 call_read(tool="mcp_info") 确认当前 build 的工具面。
+
+  3) 可调参数与地址（volatile float，均在 RAM .data 段 0x20000000+）：
+       g_kp_pp     0x20000024   位置环 Kp
+       g_ki_pp     0x20000028   位置环 Ki
+       g_kd_pp     0x2000002C   位置环 Kd
+       g_kp_sp     0x20000030   速度环 Kp
+       g_ki_sp     0x20000034   速度环 Ki
+       g_kd_sp     0x20000038   速度环 Kd
+       g_ff_scale  0x2000003C   重力前馈系数
+       g_ff_only   0x20000040   1 = 只出前馈，增益被强制归零
+       g_imax_pp   0x20000044   位置环积分限幅
+       g_outmax_pp 0x20000048   位置环输出限幅(目标速度上限 rpm)
+       g_dfilt_pp  0x2000004C   位置环 D 滤波
+       g_imax_sp   0x20000050   速度环积分限幅
+       g_outmax_sp 0x20000054   速度环输出限幅(控制量上限)
+       g_dfilt_sp  0x20000058   速度环 D 滤波
+
+  4) 观测量（同一段 RAM）：
+       g_fdb_angle    0x20000008   反馈角度
+       g_fdb_speed    0x2000000C   反馈转速 rpm
+       g_tim6_cnt     0x20000010   TIM6 中断计数(闭环 1kHz)
+       g_target_angle 0x20000018   目标角度
+       g_target_speed 0x2000001C   位置环输出目标速度
+       g_intensity    0x20000020   最终控制量
+       stop_flag      0x20000000   置 1 立即停机(安全兜底)
+       g_can_rx_cnt   0x20000114   CAN 反馈计数，>0 才说明电机在通信
+
+  5) 改完必须回读确认。写成功 != 生效，可能被固件逻辑覆盖
+     （例如 g_ff_only=1 时 setGains 被强制传 0，见 callback.cpp:100）。
+
+  6) 采样带宽：闭环 1kHz，SWD 单次读约 ms 级。轮询拿不到曲线。
+     推荐 run_for_duration(duration_sec=N, resume_after=True,
+                           sample={"interval_sec":0.2,
+                                   "expressions":["g_target_angle","g_fdb_angle", ...]})
+     sample 是 run 态低频轮询，不打断闭环。
+     采完再 halt 取一次精确快照：
+       run_for_duration(duration_sec=5, then="halt", resume_after=True,
+                        capture={"expressions":[...]})
+     采完记得 resume_execution，否则电机停转。
+
+  7) 安全：M2006 带真实负载，调参可能甩臂。
+     任何异常先 write_memory("0x20000000", 1) 停机再排查。
+
+  8) 已知告警：GDB 报 "Loadable section RW_IRAM1 outside of ELF segments"
+     是 armclang 的已知怪癖，符号解析不受影响（GDB 已能正确算出
+     0x20000000+偏移）。但 flash_firmware 若因此异常，改烧
+     MDK-ARM/Lesson4_PID/Lesson4_PID.hex。

@@ -4,11 +4,31 @@
 
 #include "can_user.h"
 #include "Motor.hpp"
+#include "imu.hpp"
 #include "tim.h"
 #include <cmath>
 
 // M2006 + C610，减速比 36.1
 Motor motor(36.1f);
+
+// BMI088 姿态解算
+IMU imu;
+
+// ====== IMU 调试全局量（Scope 里直接看）======
+volatile uint8_t g_imu_ok  = 0;
+volatile float   g_roll    = 0;   // 度
+volatile float   g_pitch   = 0;   // 度
+volatile float   g_yaw     = 0;   // 度
+volatile float   g_acc_x   = 0;   // 机体系 m/s^2
+volatile float   g_acc_y   = 0;
+volatile float   g_acc_z   = 0;
+volatile float   g_gyro_x  = 0;   // 机体系 rad/s
+volatile float   g_gyro_y  = 0;
+volatile float   g_gyro_z  = 0;
+volatile float   g_q_w     = 1;
+volatile float   g_q_x     = 0;
+volatile float   g_q_y     = 0;
+volatile float   g_q_z     = 0;
 
 // 调试用全局变量
 volatile uint8_t stop_flag = 0;   /* 1 = 电机输出立刻变 0 */
@@ -32,6 +52,7 @@ volatile float g_kp_sp    = 4.0f;   // 速度环 Kp   （调好）
 volatile float g_ki_sp    = 0.0f;   // 速度环 Ki
 volatile float g_kd_sp    = 0.05f;  // 速度环 Kd
 volatile float g_ff_scale = 1.0f;   // 重力前馈系数（前馈不够就调大）
+volatile float g_ff_only   = 0.0f;  // 1 = 只出重力前馈(录 Step1 演示)，0 = 正常双环 PID
 // 限幅 / 滤波（Ki 必须先给 i_max，否则积分被钳 0 不生效）
 volatile float g_imax_pp   = 170.0f;    // 位置环积分限幅
 volatile float g_outmax_pp = 1100.0f;   // 位置环输出限幅(=目标速度上限 rpm)
@@ -72,6 +93,12 @@ extern "C" int motor_has_feedback(void) {
     return motor.hasFeedback() ? 1 : 0;
 }
 
+// ====== 给 main.c 用的 IMU 接口 ======
+extern "C" uint8_t imu_init(void) {
+    g_imu_ok = imu.init();
+    return g_imu_ok;
+}
+
 // ====== CAN 接收回调 ======
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef* hcan) {
     uint8_t data[8];
@@ -87,16 +114,25 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef* hcan) {
         }
 }
 
+// 本节是 IMU 课。Lesson4 留下的电机控制默认关掉，避免上电时电机乱转。
+// 需要电机时改成 1。
+#define MOTOR_ENABLE 0
+
 // ====== TIM6 控制周期（1kHz）======
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
     if (htim->Instance != TIM6) return;
     g_tim6_cnt++;
 
+#if MOTOR_ENABLE
     if (stop_flag) {
         motor.stop();
     } else {
         // 每周期把在线参数写进 PID（Tuning Pad 一改，下一毫秒就生效）
-        motor.setGains(g_kp_pp, g_ki_pp, g_kd_pp, g_kp_sp, g_ki_sp, g_kd_sp);
+        if (g_ff_only >= 0.5f) {
+            motor.setGains(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);   // 只留重力前馈(Step1)
+        } else {
+            motor.setGains(g_kp_pp, g_ki_pp, g_kd_pp, g_kp_sp, g_ki_sp, g_kd_sp);
+        }
         motor.setLimits(g_imax_pp, g_outmax_pp, g_dfilt_pp,
                         g_imax_sp, g_outmax_sp, g_dfilt_sp);
         motor.setFfScale(g_ff_scale);
@@ -127,4 +163,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
             g_can_tx_ok++;
         }
     }
+#endif // MOTOR_ENABLE
+
+    // ====== IMU 1kHz 更新（读数据 -> 解算 -> 刷新调试量）======
+    imu.update(0.001f);
+    const float* ai = imu.accel();
+    const float* gi = imu.gyro();
+    const float* qi = imu.quat();
+    g_roll   = imu.roll();
+    g_pitch  = imu.pitch();
+    g_yaw    = imu.yaw();
+    g_acc_x  = ai[0];  g_acc_y  = ai[1];  g_acc_z  = ai[2];
+    g_gyro_x = gi[0];  g_gyro_y = gi[1];  g_gyro_z = gi[2];
+    g_q_w    = qi[0];  g_q_x    = qi[1];  g_q_y    = qi[2];  g_q_z = qi[3];
 }

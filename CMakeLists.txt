@@ -1,4 +1,8 @@
 ﻿cmake_minimum_required(VERSION 3.22)
+
+set(CMAKE_PROJECT_NAME Lesson5-SPI-IMU)
+project(${CMAKE_PROJECT_NAME})
+
 enable_language(C CXX ASM)
 #
 # This file is generated only once,
@@ -19,13 +23,11 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set the project name
-set(CMAKE_PROJECT_NAME Lesson4_PID)
 
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 # Core project settings
-project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
 # Enable CMake support for ASM and C languages
@@ -43,7 +45,11 @@ add_executable(${CMAKE_PROJECT_NAME}
         UserCode/Motor.hpp
         UserCode/can_user.h
         UserCode/PID.cpp
-        UserCode/PID.hpp)
+        UserCode/PID.hpp
+        UserCode/bmi088.h
+        UserCode/bmi088.c
+        UserCode/imu.hpp
+        UserCode/imu.cpp)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
